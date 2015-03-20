@@ -1,6 +1,6 @@
 (function () {
   'use strict';
-  angular.module('rkori215.angularReports', []).directive('reportsJs', function () {
+  angular.module('angularReports', []).directive('reportsJs', function () {
     return {
       scope: {
         id: '@',
