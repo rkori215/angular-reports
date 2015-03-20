@@ -87,7 +87,7 @@
         scope.$watch('ngModel', function(newVal, oldVal) {
           ngModel.$setViewValue(newVal);
           data = ngModel.$viewValue;
-          console.log('Model $viewValue:', ngModel, newVal, oldVal);
+          //console.log('Model $viewValue:', ngModel, newVal, oldVal);
           return ngModel.$render = function() {
             return buildChart();
           };
