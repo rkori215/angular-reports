@@ -51,8 +51,7 @@
           wrapper = angular.element(id).parent();
           scope.$apply(function () {
             scope.width = ctx.width = wrapper.width();
-            scope.height = ctx.height = wrapper.height();
-            return console.log(scope.height, scope.width);
+            scope.height = ctx.height = wrapper.height();  //return console.log(scope.height, scope.width);
           });
           switch (type) {
           case 'line':
