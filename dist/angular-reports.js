@@ -44,7 +44,7 @@
           }
         });
         createChart = function (id, type, data, options) {
-          var ctx, defaults, myNewChart, wrapper;
+          var ctx, defaults, myNewChart, wrapper, Chart;
           ctx = angular.element(id).get(0).getContext('2d');
           myNewChart = null;
           defaults = angular.extend({}, options);
