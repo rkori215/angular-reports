@@ -1,107 +1,340 @@
-(function() {
-  'use strict';
-  angular.module('angularReports', [])
-    .directive('reportsJs', function() {
-    return {
-      scope: {
-        id: '@',
-        title: '@',
-        type: '@',
-        width: '@',
-        height: '@',
-        options: '@',
-        data: '@',
-        ngModel: '='
-      },
-      restrict: 'E',
-      replace: true,
-      require: '?ngModel',
-      template: '<div class="chartjs"><legend ng-show="{{title}}">{{title}}</legend><div class="chartjs-wrap"><canvas id="chart_{{id}}" width="{{width}}" height="{{height}}">Content</canvas></div></div>',
-      link: function(scope, element, attrs, ngModel) {
-        var buildChart, createChart, data, delta, id, options, resizeend, rtime, timeout, type;
-        rtime = new Date(1, 1, 2000, 12, '00', '00');
-        timeout = false;
-        delta = 100;
-        id = '#chart_' + attrs.id;
-        options = attrs.options;
-        type = attrs.type;
-        data = [];
-        if (!ngModel) {
-          return;
-        }
-        resizeend = function() {
-          if (new Date() - rtime < delta) {
-            return setTimeout(resizeend, delta);
-          } else {
-            timeout = false;
-            return buildChart();
-          }
-        };
-        angular.element(window).resize(function() {
-          rtime = new Date();
-          if (timeout === false) {
-            timeout = true;
-            return setTimeout(resizeend, delta);
-          }
-        });
-        createChart = function(id, type, data, options) {
-          var ctx, defaults, myNewChart, wrapper, Chart;
-          ctx = angular.element(id).get(0).getContext('2d');
-          myNewChart = null;
-          defaults = angular.extend({}, options);
-          wrapper = angular.element(id).parent();
-          scope.$apply(function() {
-            scope.width = ctx.width = wrapper.width();
-            scope.height = ctx.height = wrapper.height();
-            //return console.log(scope.height, scope.width);
-          });
-          switch (type) {
-            case 'line':
-              myNewChart = new Chart(ctx).Line(data, defaults);
-              break;
-            case 'bar':
-              myNewChart = new Chart(ctx).Bar(data, defaults);
-              break;
-            case 'doughnut':
-              myNewChart = new Chart(ctx).Doughnut(data, defaults);
-              break;
-            case 'pie':
-              myNewChart = new Chart(ctx).Pie(data, defaults);
-              break;
-            case 'polar':
-              myNewChart = new Chart(ctx).PolarArea(data, defaults);
-              break;
-            case 'radar':
-              myNewChart = new Chart(ctx).Radar(data, defaults);
-              break;
-            default:
-              myNewChart = new Chart(ctx).Line(data, defaults);
-          }
-          return myNewChart;
-        };
-        buildChart = function() {
-          return setTimeout((function() {
-            return createChart(id, type, data, options);
-          }), 500);
-        };
-        scope.$watch('ngModel', function(newVal, oldVal) {
-          ngModel.$setViewValue(newVal);
-          data = ngModel.$viewValue;
-          //console.log('Model $viewValue:', ngModel, newVal, oldVal);
-          return ngModel.$render = function() {
-            return buildChart();
-          };
-        });
-        attrs.$observe('type', function(value) {
-          type = String(value).toLowerCase();
-          return buildChart();
-        });
-        return attrs.$observe('data', function(value) {
-          data = angular.fromJson(value);
-          return buildChart();
-        });
-      }
+var angularReports = angular.module('angularReports', []);
+  angular.forEach(['transform','x1','x2','y1','y2','x', 'y', 'width', 'height'], function(name) {
+  var ngName = 'ng' + name[0].toUpperCase() + name.slice(1);
+  angularReports.directive(ngName, function() {
+    return function(scope, element, attrs) {
+      attrs.$observe(ngName, function(value) {
+        attrs.$set(name, value); 
+      })
     };
   });
+});
 
-}).call(this);
+angularReports.directive("angularReports", [function () {
+    return {
+        restrict: "E",
+        replace: true,
+        transclude: false,
+        template:"<div id='{{chartId}}' class='angularReports'><svg ng-chart={{type}}></svg></div>",
+        scope:{
+            attr_xValues:'@xvalues',
+            attr_yValues:'@yvalues',
+            attr_margin:'@margin',
+            attr_type:'@type',
+            attr_title:'@title',
+            attr_resize:'@resize'
+        },
+        controller:function($scope){
+            $scope.chartId='angularReports_'+Math.floor(Math.random() * (9999 - 1 + 1)) + 1;
+        }
+    }
+}]);
+
+angularReports.addResizeEvent = function(func) {
+    var oldResize = window.onresize;
+    window.onresize = function () {
+        func();
+        if (typeof oldResize === 'function') {
+            oldResize();
+        }
+    };
+}
+
+angularReports.directive("angularReports", ['$compile', '$http', '$templateCache', '$interval', function ( $compile, $http, $templateCache,$interval) {
+
+    function template(type){
+        switch(type){
+            case "bar":
+                return "<svg  ng-height='{{svgHeight+offset.top+offset.bottom}}' ng-width='{{svgWidth+offset.left+offset.right}}'>\
+                    <text class='title' ng-x='{{offset.left + svgWidth/2}}' ng-y='25'>{{title}}</text>\
+                    <g class='grid' ng-transform='translate({{offset.left}},{{svgHeight+offset.bottom}})'>\
+                        <line  ng-transform='translate({{$index*tickOffsetX}},0)'  ng-repeat='tick in ticksX' class='grid' ng-y1='0' ng-y2='-{{svgHeight}}'></line>\
+                    </g>\
+                    <g class='items'>\
+                    <rect class='{{item.css}} i_{{$index}}' ng-repeat='item in itemData' ng-x='{{item.x}}'  ng-y='{{item.y}}' ng-height='{{item.height}}px' ng-width='{{item.width}}px'></rect>\
+                    </g>\
+                    <g class='axes'>\
+                        <g class='axis yAxis' ng-transform='translate({{offset.left}},{{offset.top}})'>\
+                            <line ng-y2='{{svgHeight}}'></line>\
+                            <g class='tick c_{{data[$index][xAxis.values]}} i_{{$index}}' ng-transform='translate(-5,{{(svgHeight/data.length)*$index + (svgHeight/data.length/2)}})' ng-repeat='item in data'>\
+                                <line class='bracket' ng-x1='5' ng-x2='5' ng-y1='-{{(svgHeight/data.length/2)}}' ng-y2='{{(svgHeight/data.length/2)}}'></line>\
+                                <line ng-x2='5'></line>\
+                                <text ng-y='2' ng-x='-3'>{{data[$index][yAxis.values]}}</text>\
+                            </g>\
+                        </g>\
+                        <g class='axis xAxis' ng-transform='translate({{offset.left}},{{svgHeight+offset.bottom}})'>\
+                            <line ng-x2='{{svgWidth}}'></line>\
+                            <g class='tick' ng-transform='translate({{$index*tickOffsetX}},0)'  ng-repeat='tick in ticksX'>\
+                                <line ng-y2='5'></line>\
+                                <text ng-y='17'>{{tick.value}}</text>\
+                            </g>\
+                        </g>\
+                    </g>\
+                </svg>"
+            break;
+            case "column":
+                return "<svg  ng-height='{{svgHeight+offset.top+offset.bottom}}' ng-width='{{svgWidth+offset.left+offset.right}}'>\
+                    <text class='title' ng-x='{{offset.left + svgWidth/2}}' ng-y='25'>{{title}}</text>\
+                    <g class='grid' ng-transform='translate({{offset.left}},{{offset.top}})'>\
+                        <line ng-transform='translate(-5,{{$index*tickOffsetY}})'  ng-repeat='tick in ticksY' class='v_{{tick.value}} i_{{$index}}' ng-x1='6' ng-x2='{{svgWidth+6}}'></line>\
+                    </g>\
+                    <g class='items'>\
+                        <rect class='{{item.css}} i_{{$index}}' ng-repeat='item in itemData' ng-x='{{item.x}}'  ng-y='{{item.y}}' ng-height='{{item.height}}px' ng-width='{{item.width}}px'></rect>\
+                    </g>\
+                    <g class='axes'>\
+                        <g class='axis yAxis' ng-transform='translate({{offset.left}},{{offset.top}})'>\
+                            <line ng-y2='{{svgHeight}}'></line>\
+                            <g class='tick' ng-transform='translate(-5,{{$index*tickOffsetY}})'  ng-repeat='tick in ticksY'>\
+                                <line ng-x2='5'></line>\
+                                <text ng-y='5' ng-x='-3'>{{tick.value}}</text>\
+                            </g>\
+                        </g>\
+                        <g class='axis xAxis' ng-transform='translate({{offset.left}},{{svgHeight+offset.bottom}})'>\
+                            <line ng-x2='{{svgWidth}}'></line>\
+                            <g class='tick c_{{data[$index][xAxis.values]}} i_{{$index}}' ng-transform='translate({{(svgWidth/data.length)*$index + (svgWidth/data.length/2)}},0)' ng-repeat='item in data'>\
+                                <line class='bracket' ng-x1='-{{(svgWidth/data.length/2)}}' ng-x2='{{(svgWidth/data.length/2)}}'></line>\
+                                <line ng-y2='5'></line>\
+                                <text ng-y='17'>{{data[$index][xAxis.values]}}</text>\
+                            </g>\
+                        </g>\
+                    </g>\
+                </svg>"
+            break;
+        }
+    };
+    return {
+        restrict: "A",
+        replace: true,
+        transclude: false,
+        controller: function($scope, $element){
+            // for the directive scope - link to element attributes if present/settable, or fetch from the parent controller
+            $scope.data=$scope.$parent.angularReports.data;
+            $scope.margin=parseInt($scope.attr_margin || $scope.$parent.angularReports.margin);
+            $scope.type=($scope.attr_type || $scope.$parent.angularReports.type).toString();            
+            $scope.title=($scope.attr_title || $scope.$parent.angularReports.title).toString();
+            $scope.resize=$scope.attr_resize || $scope.$parent.angularReports.resize;
+            if(typeof $scope.resize=='string'){
+                $scope.resize = ($scope.resize === 'true');
+            }
+            // create new property...or link to parent
+            $scope.xAxis={
+                values:($scope.attr_xValues || $scope.$parent.angularReports.xAxis.values).toString()
+            };   
+            $scope.yAxis={
+                values:($scope.attr_yValues || $scope.$parent.angularReports.yAxis.values).toString()
+            };    
+            $scope.tick={
+                interval:$scope.attr_tickInterval || $scope.$parent.angularReports.tick.interval
+            };    
+            $scope.series=$scope.$parent.angularReports.series;
+            
+            var offset=null,
+                svgHeight=0,
+                svgWidth=0,
+                x=[],
+                y=[],
+                maxWidth=0,
+                maxHeight=0,
+                maxX=0, 
+                minX=0, 
+                maxY=0, 
+                minY=0,
+                tickCountX=0,
+                tickCountY=0,
+                tickStepY=0,
+                tickStepX=0,
+                offsetX=0,
+                bandX=0,
+                baseX=0,
+                offsetY=0,
+                bandY=0,
+                baseY=0;
+
+            function render(element){        
+                var angularReportsEl=element || $element[0];
+                offset=$scope.margin;
+                if(typeof offset == "string" && offset.split(',').length > 1){
+                    offset=offset.split(',');
+                    $scope.offset={
+                        top:parseInt(offset[0]),
+                        right:parseInt(offset[1]),
+                        bottom:parseInt(offset[2]),
+                        left:parseInt(offset[3])
+                    }; 
+                }else if(typeof offset == "string" || typeof offset == "number"){
+                    offset=parseInt(offset);
+                    $scope.offset={
+                        top:offset,
+                        right:offset,
+                        bottom:offset,
+                        left:offset
+                    };   
+                }       
+
+                svgHeight=angularReportsEl.offsetHeight|| angularReportsEl.clientHeight || (angularReportsEl.parentNode && angularReportsEl.parentNode.clientHeight) || 0;
+                svgWidth=angularReportsEl.offsetWidth||angularReportsEl.clientWidth || (angularReportsEl.parentNode && angularReportsEl.parentNode.clientWidth) || 0;
+
+                svgHeight=svgHeight-$scope.offset.top-$scope.offset.bottom,
+                svgWidth=svgWidth-$scope.offset.left-$scope.offset.right,
+
+                $scope.svgHeight=svgHeight;
+                $scope.svgWidth=svgWidth;
+            }
+            
+            render();
+            function dataChange(){
+
+                $scope.itemData=[];
+                $scope.data.forEach(function(item){
+                    x.push(item[$scope.xAxis.values]);
+                    y.push(item[$scope.yAxis.values]);
+                });
+                
+                        
+                minY = Math.min.apply(null, y);               
+                maxY = Math.max.apply(null, y); 
+                minY=minY > 0 ? 0 : minY;    
+                         
+                maxX = Math.max.apply(null, x);      
+                minX = Math.min.apply(null, x);                
+                minX=minX > 0 ? 0 : minX; 
+                
+                // get max value offset from zero
+                if(Math.abs(minX)>Math.abs(maxX)){
+                    offsetX=Math.abs(minX);                    
+                }else{
+                    offsetX=Math.abs(maxX);
+                }
+                // get actual scale size
+                if(minX<0 && maxX >0){
+                    bandX=offsetX*2;       
+                    baseX=svgWidth*.5;
+                    minX=offsetX*-1;
+                    maxX=offsetX;
+                }else{
+                    bandX=offsetX;
+                    offsetX=0;
+                    baseX=0;
+                }
+                // get max value offset from zero
+                if(Math.abs(minY)>Math.abs(maxY)){
+                    offsetY=Math.abs(minY);                    
+                }else{
+                    offsetY=Math.abs(maxY);
+                }
+                // get actual scale size
+                if(minY<0 && maxY >0){
+                    bandY=offsetY*2;       
+                    baseY=svgHeight*.5;
+                    minY=offsetY*-1;
+                    maxY=offsetY;
+                }else{
+                    bandY=offsetY;
+                    offsetY=0;
+                    baseY=svgHeight;
+                }                
+                rangeX=bandX;
+                rangeY=bandY;       
+                switch($scope.type){
+                    case "column":          
+                        maxWidth=svgWidth/$scope.data.length/$scope.series.length;
+                        $scope.data.forEach(function(item, index){
+                            $scope.series.forEach(function(serie, series){         
+                                var height=Math.abs(Math.round((item[serie.values]/rangeY)*svgHeight));                                 
+                                $scope.itemData.push({
+                                    height:height,
+                                    width:maxWidth,
+                                    x:(maxWidth*index)*$scope.series.length + (series*maxWidth)+$scope.offset.left,// 
+                                    y:item[serie.values]<0 ? $scope.offset.top+baseY : $scope.offset.top+baseY-height,
+                                    css:'s_'+series+' c_'+item[$scope.xAxis.values]+' v_'+item[serie.values] + (item[serie.values] < 0 ? ' negative': ' positive')
+                                });
+                            }); 
+                        });
+                    break;                        
+                    case "bar":             
+                        maxHeight=svgHeight/$scope.data.length/$scope.series.length;
+                        $scope.data.forEach(function(item, index){
+                            $scope.series.forEach(function(serie, series){
+                                var width=Math.round((Math.abs(item[serie.values])/rangeX)*svgWidth);  
+                                $scope.itemData.push({
+                                    height:maxHeight,
+                                    width:width,
+                                    x:item[serie.values]<0 ? $scope.offset.left+(svgWidth*(item[serie.values]+offsetX)/bandX) : $scope.offset.left+baseX,
+                                    y:(maxHeight*index)*$scope.series.length + (series*maxHeight)+$scope.offset.left,
+                                    css:'s_'+series+' c_'+item[$scope.yAxis.values]+' v_'+item[serie.values] + (item[serie.values] < 0 ? ' negative': ' positive')
+                                });
+                            });                            
+                        });                       
+                    break;
+                }
+                
+                $scope.tickGapY=20;
+                $scope.tickGapX=40;
+                $scope.ticksY=[];
+                $scope.ticksX=[];
+                // how many ticks will fit?
+                
+                if(!$scope.tick.interval || isNaN($scope.tick.interval)){
+                    tickCountY=Math.round(svgHeight/$scope.tickGapY);
+                    tickCountX=Math.round(svgWidth/$scope.tickGapX);
+                }else{
+                    tickCountY=$scope.tick.interval;
+                    tickCountX=$scope.tick.interval;
+                };
+                
+                
+                
+                // re-factor offset between ticks at that amount
+                $scope.tickOffsetY=svgHeight/tickCountY;   
+                $scope.tickOffsetX=svgWidth/tickCountX;  
+                
+                tickStepY=(maxY-minY) /tickCountY;
+                tickStepX=(maxX-minX) /tickCountX;               
+                
+                for(i=tickCountY;i>=0;i--){
+                    var v=minY+(tickStepY*i);
+                    $scope.ticksY.push({value:v});
+                }    
+                for(i=0;i<=tickCountX;i++){
+                    var v=minX+(tickStepX*i);
+                    $scope.ticksX.push({value:v});
+                }                               
+            };
+            
+            
+            $scope.$watch('data', function(n, o){     
+               o!== undefined && n!== undefined && dataChange();
+            },true);
+            
+            if($scope.resize){
+                $scope.chartWidth=0;
+                $scope.chartHeight=0;
+                var resizing=false;
+                $interval(function(){                
+                    angularReportsEl=angular.element(document.getElementById($scope.chartId))[0];
+                    var newHeight=angularReportsEl.offsetHeight|| angularReportsEl.clientHeight || (angularReportsEl.parentNode && angularReportsEl.parentNode.clientHeight) || 0;
+                    var newWidth=angularReportsEl.offsetWidth||angularReportsEl.clientWidth || (angularReportsEl.parentNode && angularReportsEl.parentNode.clientWidth) || 0;
+                    if(newHeight != $scope.chartHeight || newWidth != $scope.chartWidth){ 
+                        if($scope.chartHeight !=0 && $scope.chartWidth !=0){
+                            resizing=true; 
+                        }
+                        $scope.chartWidth=newWidth;
+                        $scope.chartHeight=newHeight;                        
+                    }else{
+                        if(resizing==true){
+                            render(angularReportsEl);
+                            dataChange();
+                        };
+                        resizing=false;                  
+                    }
+                },200);
+            }
+            
+        },      
+        
+        link:function(scope, element, attrs){
+            element.html(template(scope.type));        
+            element.replaceWith($compile(element.html())(scope));
+        }
+    }
+}]);
