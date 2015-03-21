@@ -4,7 +4,7 @@ describe('Module: angularReports', function () {
   var scope, $sandbox, $compile, $timeout;
 
   // load the controller's module
-  beforeEach(module('rkori215.angularReports'));
+  beforeEach(module('angularReports'));
 
   beforeEach(inject(function ($injector, $rootScope, _$compile_, _$timeout_) {
     scope = $rootScope;

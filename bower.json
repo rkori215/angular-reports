@@ -4,7 +4,7 @@
   "dependencies": {
   },
   "devDependencies": {
-    "angular-unstable": "latest",
+    "angular": "~1.2",
     "angular-mocks": "latest",
     "jquery": "latest"
   }

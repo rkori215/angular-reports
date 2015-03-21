@@ -15,7 +15,7 @@ angularReports.directive("angularReports", [function () {
         restrict: "E",
         replace: true,
         transclude: false,
-        template:"<div id='{{chartId}}' class='angularReports'><svg ng-chart={{type}}></svg></div>",
+        template:"<div id='{{chartId}}' class='angularReports'><svg angular-reports={{type}}></svg></div>",
         scope:{
             attr_xValues:'@xvalues',
             attr_yValues:'@yvalues',
