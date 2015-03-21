@@ -1,0 +1,50 @@
+html,body{
+    height:100%;
+    width:100%;
+    margin:0;
+    padding:0;
+}
+.angularReports{
+    height:100%;
+    width:100%;
+    position:relative;
+    font-family:arial;
+    font-size:10px;
+    overflow:hidden;
+    stroke:#808080;
+    fill:#808080;
+}
+.angularReports svg{
+    position:absolute;
+}
+.angularReports text{
+    stroke:none;
+    fill:#000;
+}
+.angularReports path, .angularReports line, .angularReports rect{
+    shape-rendering: crispEdges;
+}    
+.angularReports line{
+    stroke-width:1px;
+}
+.angularReports .xAxis text, .angularReports text.title{
+    text-anchor:middle;
+}
+.angularReports text.title{
+    font-size:1.5em;
+}
+.angularReports .yAxis text{
+    text-anchor:end;
+}
+.angularReports rect{
+    stroke:#c0c0c0;
+    fill:lightblue;
+    fill-opacity:.5;
+    transition:all 200ms ease-in;
+}
+.angularReports rect:hover{
+    fill-opacity:1;
+}
+.angularReports .grid{
+    stroke:#f5f5f5;
+}
