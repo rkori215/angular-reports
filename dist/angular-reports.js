@@ -1,15 +1,5 @@
 var angularReports = angular.module('angularReports', []);
-angular.forEach([
-  'transform',
-  'x1',
-  'x2',
-  'y1',
-  'y2',
-  'x',
-  'y',
-  'width',
-  'height'
-], function (name) {
+angular.forEach(function (name) {
   var ngName = 'ng' + name[0].toUpperCase() + name.slice(1);
   angularReports.directive(ngName, function () {
     return function (scope, element, attrs) {
